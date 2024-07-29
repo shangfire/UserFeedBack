@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// 上传文件接口
 func uploadFile(w http.ResponseWriter, r *http.Request) {
 	// 检查请求是否为multipart/form-data
 	if r.Method != "POST" || !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
@@ -104,12 +105,14 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		submission.FileInfos = append(submission.FileInfos, fileInfo)
 	}
 
+	// 相关内容写入数据库
 	dbwrapper.InsertFileSubmission(submission)
 
-	// 响应
+	// 响应客户端已完成
 	fmt.Fprintf(w, "Files uploaded successfully")
 }
 
+// 查询已提交的记录的接口
 func queryFileSubmission(w http.ResponseWriter, r *http.Request) {
 	feedbacks, err := dbwrapper.QueryFileSubmission()
 	if err != nil {
@@ -121,12 +124,46 @@ func queryFileSubmission(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(feedbacks)
 }
 
+// 下载文件的接口
+func downloadFile(w http.ResponseWriter, r *http.Request) {
+	filePath := r.URL.Query().Get("file") // 从查询参数获取文件路径
+	if filePath == "" {
+		http.Error(w, "File not specified", http.StatusBadRequest)
+		return
+	}
+
+	// 设置响应头以提示浏览器下载文件
+	w.Header().Set("Content-Disposition", "attachment; filename="+filePath)
+	w.Header().Set("Content-Type", "application/octet-stream")
+
+	// 打开文件
+	file, err := os.Open(filePath)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+
+	// 将文件内容写入响应
+	io.Copy(w, file)
+}
+
 func main() {
 	// 初始化数据库
 	dbwrapper.InitDB()
 	defer dbwrapper.CloseDB()
 
+	// 提供上传页面的服务
+	uploadFS := http.FileServer(http.Dir("./html/upload"))
+	http.Handle("/upload/", http.StripPrefix("/upload", uploadFS))
+
+	// 提供浏览页面的服务
+	queryFS := http.FileServer(http.Dir("./html/query"))
+	http.Handle("/query/", http.StripPrefix("/query", queryFS))
+
 	// 启动HTTP服务器
+	// 设置各接口相应函数
+	http.HandleFunc("/downloadFile", downloadFile)
 	http.HandleFunc("/feedback", queryFileSubmission)
 	http.HandleFunc("/upload", uploadFile)
 	fmt.Println("Server is running on :8080")
