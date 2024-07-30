@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", function() {
-    setTimeout(function() {
         fetch("/feedback")
         .then(response => response.json())
         .then(data => {
@@ -38,5 +37,4 @@ document.addEventListener("DOMContentLoaded", function() {
             };
         })
         .catch(error => console.error('Error fetching feedbacks:', error));
-    }, 5000)
 });
