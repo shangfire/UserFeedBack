@@ -161,12 +161,13 @@ func main() {
 	queryFS := http.FileServer(http.Dir("./html/query"))
 	http.Handle("/query/", http.StripPrefix("/query", queryFS))
 
-	// 启动HTTP服务器
-	// 设置各接口相应函数
+	// 设置各接口响应函数
 	http.HandleFunc("/downloadFile", downloadFile)
 	http.HandleFunc("/feedback", queryFileSubmission)
 	http.HandleFunc("/upload", uploadFile)
 	fmt.Println("Server is running on :8080")
+
+	// 启动服务
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		panic(err)
 	}

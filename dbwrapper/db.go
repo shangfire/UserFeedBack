@@ -129,6 +129,7 @@ func InsertFileSubmission(submission FormSubmission) error {
 	return nil
 }
 
+// 查询所有记录信息
 func QueryFileSubmission() ([]FormSubmission, error) {
 	rows, err := instance.Query(`
         SELECT
