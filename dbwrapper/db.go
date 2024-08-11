@@ -1,8 +1,8 @@
 package dbwrapper
 
 import (
+	"UserFeedBack/logwrapper"
 	"database/sql"
-	"log"
 	"sync"
 	"time"
 
@@ -30,20 +30,20 @@ var (
 	once     sync.Once
 )
 
-// 方法名需要大写才能被外部包调用
 // InitDB 初始化数据库连接
+// 方法名需要大写才能被外部包调用
 func InitDB() {
 	once.Do(func() {
 		var err error
 		// 连接到 MySQL 数据库
 		instance, err = sql.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/new_schema")
 		if err != nil {
-			log.Fatalf("Failed to connect to database: %v", err)
+			logwrapper.Logger.Fatalf("Failed to connect to database: %v", err)
 		}
 
 		// 检查连接是否成功
 		if err = instance.Ping(); err != nil {
-			log.Fatalf("Failed to ping database: %v", err)
+			logwrapper.Logger.Fatalf("Failed to ping database: %v", err)
 		}
 
 		// 检查 FeedBack 表是否存在，如果不存在则创建它
@@ -56,7 +56,7 @@ func InitDB() {
 		`
 
 		if _, err := instance.Exec(createTabFeedBack); err != nil {
-			log.Fatalf("Failed to create table: %v", err)
+			logwrapper.Logger.Fatalf("Failed to create table: %v", err)
 		}
 
 		// 检查 File 表是否存在，如果不存在则创建它
@@ -73,7 +73,7 @@ func InitDB() {
 		`
 
 		if _, err := instance.Exec(createTabFile); err != nil {
-			log.Fatalf("Failed to create table: %v", err)
+			logwrapper.Logger.Fatalf("Failed to create table: %v", err)
 		}
 	})
 }
@@ -81,7 +81,7 @@ func InitDB() {
 // GetDB 返回数据库连接的实例
 func GetDB() *sql.DB {
 	if instance == nil {
-		log.Fatal("Database not initialized")
+		logwrapper.Logger.Fatal("Database not initialized")
 	}
 	return instance
 }
