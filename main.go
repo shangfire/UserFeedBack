@@ -3,6 +3,7 @@ package main
 import (
 	"UserFeedBack/dbwrapper"
 	"UserFeedBack/logwrapper"
+	"UserFeedBack/osswrapper"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -153,12 +154,21 @@ func downloadFile(w http.ResponseWriter, r *http.Request) {
 func main() {
 	// 初始化日志库
 	if err := logwrapper.Init("./log/log.log", logrus.DebugLevel); err != nil {
-		panic(err)
+		logwrapper.Logger.Fatal(err)
+		return
 	}
 
 	// 初始化数据库
 	dbwrapper.InitDB()
 	defer dbwrapper.CloseDB()
+
+	// 初始化oss
+	if err := osswrapper.Init(); err != nil {
+		logwrapper.Logger.Fatal(err)
+		return
+	}
+
+	osswrapper.GenerateUploadUrl("test.txt")
 
 	// 提供上传页面的服务
 	uploadFS := http.FileServer(http.Dir("./html/upload"))
