@@ -1,3 +1,10 @@
+/*
+ * @Author: shanghanjin
+ * @Date: 2024-08-12 11:38:02
+ * @LastEditTime: 2024-08-15 20:19:24
+ * @FilePath: \UserFeedBack\main.go
+ * @Description:
+ */
 package main
 
 import (
@@ -16,7 +23,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// 上传文件接口
+/**
+ * @description: 上传文件接口
+ * @param {http.ResponseWriter} w
+ * @param {*http.Request} r
+ * @return {*}
+ */
 func uploadFile(w http.ResponseWriter, r *http.Request) {
 	// 检查请求是否为multipart/form-data
 	if r.Method != "POST" || !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
@@ -115,7 +127,12 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Files uploaded successfully")
 }
 
-// 查询已提交的记录的接口
+/**
+ * @description: 查询文件接口
+ * @param {http.ResponseWriter} w
+ * @param {*http.Request} r
+ * @return {*}
+ */
 func queryFileSubmission(w http.ResponseWriter, r *http.Request) {
 	feedbacks, err := dbwrapper.QueryFileSubmission()
 	if err != nil {
@@ -127,7 +144,12 @@ func queryFileSubmission(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(feedbacks)
 }
 
-// 下载文件的接口
+/**
+ * @description: 上传文件接口
+ * @param {http.ResponseWriter} w
+ * @param {*http.Request} r
+ * @return {*}
+ */
 func downloadFile(w http.ResponseWriter, r *http.Request) {
 	filePath := r.URL.Query().Get("file") // 从查询参数获取文件路径
 	if filePath == "" {
