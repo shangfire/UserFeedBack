@@ -1,14 +1,17 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-13 16:46:39
- * @LastEditTime: 2024-08-16 14:08:44
+ * @LastEditTime: 2024-08-20 11:50:15
  * @FilePath: \UserFeedBack\osswrapper\oss.go
  * @Description:
  */
 package osswrapper
 
 import (
+	zgconfig "UserFeedBack/configwrapper"
 	logger "UserFeedBack/logwrapper"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -16,22 +19,22 @@ import (
 
 	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
 	sts "github.com/alibabacloud-go/sts-20150401/v2/client"
+	util "github.com/alibabacloud-go/tea-utils/v2/service"
 	"github.com/alibabacloud-go/tea/tea"
-	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
 var client *sts.Client
 
 func Init() error {
 	config := &openapi.Config{
-		AccessKeyId:     tea.String(""),
-		AccessKeySecret: tea.String(""),
+		AccessKeyId:     tea.String(zgconfig.Cfg.Oss.OssAccessKeyId),
+		AccessKeySecret: tea.String(zgconfig.Cfg.Oss.OssAccessKeySecret),
 	}
 
-	config.Endpoint = tea.String("oss-cn-beijing.aliyuncs.com")
+	config.Endpoint = tea.String(zgconfig.Cfg.Oss.StsEndpoint)
 	_client, _err := sts.NewClient(config)
 	if _err != nil {
-		logger.Logger.Error("Error initializing OSS client:", _err)
+		logger.Logger.Error("error initializing OSS client:", _err)
 		return _err
 	}
 
@@ -39,40 +42,96 @@ func Init() error {
 	return nil
 }
 
-func GenerateUploadUrl(originalFileName string) (string, error) {
-	// 获取当前时间
-	currentTime := time.Now()
+type GenrateResult struct {
+	AccessKeyId     string
+	AccessKeySecret string
+	Expiration      string
+	SecurityToken   string
+	OssPaths        []string
+}
 
-	// 提取文件名和扩展名
-	fileName := strings.TrimSuffix(originalFileName, filepath.Ext(originalFileName))
-	extension := filepath.Ext(originalFileName)
+func GenerateSecurityToken(originalFileNames []string) (*GenrateResult, error) {
+	if len(originalFileNames) == 0 {
+		logger.Logger.Error("empty file names provided")
+		return nil, errors.New("empty file names provided")
+	}
 
-	// 生成时间戳
-	timestamp := currentTime.Unix()
+	// 返回结果
+	result := &GenrateResult{}
 
-	// 生成路径，日期格式为 "年-月-日"
-	path := fmt.Sprintf("%d-%02d-%02d/%s_%d%s",
-		currentTime.Year(),
-		currentTime.Month(),
-		currentTime.Day(),
-		fileName,
-		timestamp,
-		extension,
-	)
+	// 待填充的新的文件路径集合
+	resourcePaths := make([]string, 0, len(originalFileNames))
+
+	// 遍历原始文件名数组生成新的文件名
+	for _, originalFileName := range originalFileNames {
+		// 提取文件名和扩展名
+		fileName := strings.TrimSuffix(originalFileName, filepath.Ext(originalFileName))
+		extension := filepath.Ext(originalFileName)
+
+		// 生成oss上的存放路径
+		pathOnOss := fmt.Sprintf("%s/%s_%d%s",
+			zgconfig.Cfg.Oss.DirFeedback,
+			fileName,
+			time.Now().Unix(),
+			extension,
+		)
+		result.OssPaths = append(result.OssPaths, pathOnOss)
+
+		// 生成resouce字段对应的路径
+		pathInResource := fmt.Sprintf("acs:oss:*:*:%s/%s",
+			zgconfig.Cfg.Oss.BucketName,
+			pathOnOss,
+		)
+		resourcePaths = append(resourcePaths, pathInResource)
+	}
+
+	// 定义结构体来表示 Policy
+	type Statement struct {
+		Effect   string   `json:"Effect"`
+		Action   string   `json:"Action"`
+		Resource []string `json:"Resource"`
+	}
+
+	type Policy struct {
+		Version   string      `json:"Version"`
+		Statement []Statement `json:"Statement"`
+	}
+
+	// 创建 Policy 对象
+	policy := Policy{
+		Version: "1",
+		Statement: []Statement{
+			{
+				Effect:   "Allow",
+				Action:   "oss:PutObject",
+				Resource: resourcePaths,
+			},
+		},
+	}
+
+	// 转化Policy为json字符串
+	policyBytes, err := json.Marshal(policy)
+	if err != nil {
+		logger.Logger.Error("error marshalling policy:", err)
+		return nil, err
+	}
 
 	assumeRoleRequest := &sts.AssumeRoleRequest{
-		RoleArn: tea.String("acs:ram::1652022578600526:role/rolests"),
+		RoleArn:         tea.String(zgconfig.Cfg.Oss.FeedbackRole),
+		RoleSessionName: tea.String(zgconfig.Cfg.Oss.RoleSessionName),
+		Policy:          tea.String(string(policyBytes)),
 	}
 
-	// 生成临时上传URL
-	signedURL, err := bucket.SignURL(path, oss.HTTPPut, 3600) // 3600秒=1小时
-	if err != nil {
-		logger.Logger.Error("Error generating signed URL:", err)
-		return "", err
+	stsResult := &sts.AssumeRoleResponse{}
+	if stsResult, err = client.AssumeRoleWithOptions(assumeRoleRequest, &util.RuntimeOptions{}); err != nil {
+		logger.Logger.Error("error generating signed URL:", err)
+		return nil, err
 	}
 
-	// 打印生成的URL
-	logger.Logger.Debug("Signed URL:", signedURL)
+	result.AccessKeyId = *stsResult.Body.Credentials.AccessKeyId
+	result.AccessKeySecret = *stsResult.Body.Credentials.AccessKeySecret
+	result.Expiration = *stsResult.Body.Credentials.Expiration
+	result.SecurityToken = *stsResult.Body.Credentials.SecurityToken
 
-	return signedURL, nil
+	return result, nil
 }

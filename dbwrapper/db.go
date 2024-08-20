@@ -1,8 +1,11 @@
 package dbwrapper
 
 import (
+	"UserFeedBack/configwrapper"
+	"UserFeedBack/dto"
 	"UserFeedBack/logwrapper"
 	"database/sql"
+	"fmt"
 	"sync"
 	"time"
 
@@ -36,7 +39,13 @@ func InitDB() {
 	once.Do(func() {
 		var err error
 		// 连接到 MySQL 数据库
-		instance, err = sql.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/new_schema")
+		address := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+			configwrapper.Cfg.Database.User,
+			configwrapper.Cfg.Database.Password,
+			configwrapper.Cfg.Database.Host,
+			configwrapper.Cfg.Database.Port,
+			configwrapper.Cfg.Database.Schema)
+		instance, err = sql.Open("mysql", address)
 		if err != nil {
 			logwrapper.Logger.Fatalf("Failed to connect to database: %v", err)
 		}
@@ -50,8 +59,13 @@ func InitDB() {
 		createTabFeedBack := `  
 		CREATE TABLE IF NOT EXISTS feedback (  
 			feedback_id INT AUTO_INCREMENT PRIMARY KEY,  
-			title VARCHAR(255) NOT NULL,  
-			content TEXT
+			bug_description TEXT NOT NULL, 
+			impacted_module TEXT NOT NULL, 
+			occurring_frequency TEXT NOT NULL, 
+			reproduce_steps TEXT NOT NULL,  
+			user_info TEXT, 
+			process_info TEXT, 
+			email TEXT 
 		);  
 		`
 
@@ -66,7 +80,6 @@ func InitDB() {
     		feedback_id INT,  
     		file_name VARCHAR(255) NOT NULL,  
     		file_path VARCHAR(255) NOT NULL,  
-    		file_type VARCHAR(50),  
     		file_size BIGINT,
     		FOREIGN KEY (feedback_id) REFERENCES Feedback(feedback_id) 
 		);  
@@ -91,8 +104,8 @@ func CloseDB() error {
 	return instance.Close()
 }
 
-// 提交表单数据到数据库
-func InsertFileSubmission(submission FormSubmission) error {
+// 提交数据到数据库
+func InsertFileSubmission(feedBack dto.FeedbackDTO) error {
 	// Start a transaction
 	tx, err := instance.Begin()
 	if err != nil {
@@ -101,7 +114,13 @@ func InsertFileSubmission(submission FormSubmission) error {
 	defer tx.Rollback()
 
 	// Insert feedback data
-	result, err := tx.Exec("INSERT INTO feedback (title, content) VALUES (?, ?)", submission.Title, submission.Content)
+	result, err := tx.Exec("INSERT INTO feedback (bug_description, impacted_module, occurring_frequency, reproduce_steps, user_info, email) VALUES (?, ?, ?, ?, ?, ?)",
+		feedBack.BugDescription,
+		feedBack.ImpactedModule,
+		feedBack.OccurringFrequency,
+		feedBack.ReproduceSteps,
+		feedBack.UserInfo,
+		feedBack.Email)
 	if err != nil {
 		return err
 	}
@@ -113,9 +132,9 @@ func InsertFileSubmission(submission FormSubmission) error {
 	}
 
 	// Insert file data
-	for _, fileInfo := range submission.FileInfos {
-		_, err = tx.Exec("INSERT INTO file (feedback_id, file_name, file_path, file_type, file_size) VALUES (?, ?, ?, ?, ?)",
-			feedbackID, fileInfo.OriginalName, fileInfo.ServerPath, fileInfo.FileType, fileInfo.FileSize)
+	for _, fileInfo := range feedBack.Files {
+		_, err = tx.Exec("INSERT INTO file (feedback_id, file_name, file_path, file_size) VALUES (?, ?, ?, ?)",
+			feedbackID, fileInfo.Filename, fileInfo.FilePathOnOss, fileInfo.FileSize)
 		if err != nil {
 			return err
 		}
@@ -130,66 +149,103 @@ func InsertFileSubmission(submission FormSubmission) error {
 }
 
 // 查询所有记录信息
-func QueryFileSubmission() ([]FormSubmission, error) {
-	rows, err := instance.Query(`
-        SELECT
-            f.feedback_id, f.title, f.content,
-            fl.file_name, fl.file_path, fl.file_type, fl.file_size
-        FROM
-            feedback f
-        LEFT JOIN
-            file fl ON f.feedback_id = fl.feedback_id
-        ORDER BY
-            f.feedback_id
-    `)
+func QueryFeedback(pageIndex int, pageSize int) ([]dto.FeedbackDTO, error) {
+	var (
+		query     string
+		result    []dto.FeedbackDTO
+		resultMap map[int]*dto.FeedbackDTO
+	)
+
+	query = `  
+        SELECT  
+            f.feedback_id, f.bug_description, f.impacted_module, f.occurring_frequency, f.reproduce_steps, f.user_info, f.process_info, f.email,  
+            fl.file_name, fl.file_path, fl.file_size  
+        FROM  
+            feedback f  
+        LEFT JOIN  
+            file fl ON f.feedback_id = fl.feedback_id  
+        ORDER BY  
+            f.feedback_id  
+    `
+
+	// 如果pageIndex不是-1，则添加LIMIT和OFFSET进行分页
+	if pageIndex != -1 {
+		offset := pageIndex * pageSize
+		query += fmt.Sprintf(" LIMIT %d OFFSET %d", pageSize, offset)
+	}
+
+	rows, err := instance.Query(query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	feedbacks := []FormSubmission{}
-	feedbackMap := make(map[int]*FormSubmission)
+	result = []dto.FeedbackDTO{}
+	resultMap = make(map[int]*dto.FeedbackDTO)
 
+	// 处理查询结果
 	for rows.Next() {
-		var feedbackID int
-		var title, content, fileName, filePath, fileType sql.NullString
-		var fileSize sql.NullInt64
+		var (
+			feedbackID         int
+			bugDescription     string
+			impactedModule     string
+			occurringFrequency string
+			reproduceSteps     string
+			userInfo           string
+			processInfo        string
+			email              string
+			filename           string
+			filePathOnOss      string
+			fileSize           int64
+		)
 
-		if err := rows.Scan(&feedbackID, &title, &content, &fileName, &filePath, &fileType, &fileSize); err != nil {
+		err = rows.Scan(
+			&feedbackID,
+			&impactedModule,
+			&occurringFrequency,
+			&bugDescription,
+			&reproduceSteps,
+			&userInfo,
+			&processInfo,
+			&email,
+			&filename,
+			&filePathOnOss,
+			&fileSize,
+		)
+		if err != nil {
 			return nil, err
 		}
 
-		if feedback, exists := feedbackMap[feedbackID]; exists {
-			if fileName.Valid {
-				feedback.FileInfos = append(feedback.FileInfos, FileInfo{
-					OriginalName: fileName.String,
-					ServerPath:   filePath.String,
-					FileType:     fileType.String,
-					FileSize:     fileSize.Int64,
-				})
-			}
+		if feedback, exists := resultMap[feedbackID]; exists {
+			feedback.Files = append(feedback.Files, dto.FeedBackFile{
+				Filename:      filename,
+				FilePathOnOss: filePathOnOss,
+				FileSize:      fileSize,
+			})
 		} else {
-			files := []FileInfo{}
-			if fileName.Valid {
-				files = append(files, FileInfo{
-					OriginalName: fileName.String,
-					ServerPath:   filePath.String,
-					FileType:     fileType.String,
-					FileSize:     fileSize.Int64,
-				})
-			}
+			files := []dto.FeedBackFile{}
+			files = append(files, dto.FeedBackFile{
+				Filename:      filename,
+				FilePathOnOss: filePathOnOss,
+				FileSize:      fileSize,
+			})
 
-			feedbackMap[feedbackID] = &FormSubmission{
-				Title:     title.String,
-				Content:   content.String,
-				FileInfos: files,
+			resultMap[feedbackID] = &dto.FeedbackDTO{
+				ImpactedModule:     impactedModule,
+				OccurringFrequency: occurringFrequency,
+				BugDescription:     bugDescription,
+				ReproduceSteps:     reproduceSteps,
+				UserInfo:           userInfo,
+				ProcessInfo:        &processInfo,
+				Email:              email,
+				Files:              files,
 			}
 		}
 	}
 
-	for _, feedback := range feedbackMap {
-		feedbacks = append(feedbacks, *feedback)
+	for _, feedback := range resultMap {
+		result = append(result, *feedback)
 	}
 
-	return feedbacks, nil
+	return result, nil
 }
