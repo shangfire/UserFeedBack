@@ -16,6 +16,7 @@ import (
 type Oss struct {
 	OssAccessKeyId     string `json:"accessKeyId"`
 	OssAccessKeySecret string `json:"accessKeySecret"`
+	OssEndpoint        string `json:"ossEndpoint"`
 	StsEndpoint        string `json:"stsEndpoint"`
 	FeedbackRole       string `json:"feedbackRole"`
 	BucketName         string `json:"bucketName"`

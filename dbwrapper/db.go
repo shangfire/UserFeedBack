@@ -1,3 +1,10 @@
+/*
+ * @Author: shanghanjin
+ * @Date: 2024-08-25 20:51:47
+ * @LastEditTime: 2024-08-27 19:22:11
+ * @FilePath: \UserFeedBack\dbwrapper\db.go
+ * @Description:
+ */
 package dbwrapper
 
 import (
@@ -6,27 +13,11 @@ import (
 	"UserFeedBack/logwrapper"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
-	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
-
-// FileInfo 结构体，用于存储文件信息
-type FileInfo struct {
-	OriginalName string
-	FileType     string
-	FileSize     int64
-	ServerPath   string
-}
-
-// FormSubmission 结构体，用于存储表单提交信息
-type FormSubmission struct {
-	Title      string
-	Content    string
-	FileInfos  []FileInfo
-	SubmitTime time.Time
-}
 
 var (
 	instance *sql.DB
@@ -56,33 +47,33 @@ func InitDB() {
 		}
 
 		// 检查 FeedBack 表是否存在，如果不存在则创建它
-		createTabFeedBack := `  
-		CREATE TABLE IF NOT EXISTS feedback (  
-			feedback_id INT AUTO_INCREMENT PRIMARY KEY,  
-			bug_description TEXT NOT NULL, 
-			impacted_module TEXT NOT NULL, 
-			occurring_frequency TEXT NOT NULL, 
-			reproduce_steps TEXT NOT NULL,  
-			user_info TEXT, 
-			process_info TEXT, 
-			email TEXT 
-		);  
+		createTabFeedback := `
+		CREATE TABLE IF NOT EXISTS feedback (
+			feedback_id INT AUTO_INCREMENT PRIMARY KEY,
+			bug_description TEXT NOT NULL,
+			impacted_module TEXT NOT NULL,
+			occurring_frequency INT NOT NULL,
+			reproduce_steps TEXT NOT NULL,
+			user_info TEXT,
+			process_info TEXT,
+			email TEXT
+		);
 		`
 
-		if _, err := instance.Exec(createTabFeedBack); err != nil {
+		if _, err := instance.Exec(createTabFeedback); err != nil {
 			logwrapper.Logger.Fatalf("Failed to create table: %v", err)
 		}
 
 		// 检查 File 表是否存在，如果不存在则创建它
-		createTabFile := `  
-		CREATE TABLE IF NOT EXISTS file (  
-	    	file_id INT AUTO_INCREMENT PRIMARY KEY,  
-    		feedback_id INT,  
-    		file_name VARCHAR(255) NOT NULL,  
-    		file_path VARCHAR(255) NOT NULL,  
-    		file_size BIGINT,
-    		FOREIGN KEY (feedback_id) REFERENCES Feedback(feedback_id) 
-		);  
+		createTabFile := `
+		CREATE TABLE IF NOT EXISTS file (
+	    	file_id INT AUTO_INCREMENT PRIMARY KEY,
+			feedback_id INT,
+			file_name VARCHAR(255) NOT NULL,
+			file_path VARCHAR(255) NOT NULL,
+			file_size BIGINT,
+			FOREIGN KEY (feedback_id) REFERENCES Feedback(feedback_id) ON DELETE CASCADE
+		);
 		`
 
 		if _, err := instance.Exec(createTabFile); err != nil {
@@ -105,7 +96,7 @@ func CloseDB() error {
 }
 
 // 提交数据到数据库
-func InsertFileSubmission(feedBack dto.FeedbackDTO) error {
+func InsertFileSubmission(feedback dto.FeedbackDTO) error {
 	// Start a transaction
 	tx, err := instance.Begin()
 	if err != nil {
@@ -114,13 +105,19 @@ func InsertFileSubmission(feedBack dto.FeedbackDTO) error {
 	defer tx.Rollback()
 
 	// Insert feedback data
-	result, err := tx.Exec("INSERT INTO feedback (bug_description, impacted_module, occurring_frequency, reproduce_steps, user_info, email) VALUES (?, ?, ?, ?, ?, ?)",
-		feedBack.BugDescription,
-		feedBack.ImpactedModule,
-		feedBack.OccurringFrequency,
-		feedBack.ReproduceSteps,
-		feedBack.UserInfo,
-		feedBack.Email)
+	result, err := tx.Exec("INSERT INTO feedback (bug_description, impacted_module, occurring_frequency, reproduce_steps, user_info, process_info, email) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		feedback.BugDescription,
+		feedback.ImpactedModule,
+		feedback.OccurringFrequency,
+		feedback.ReproduceSteps,
+		feedback.UserInfo,
+		func(s *string) string {
+			if s == nil {
+				return ""
+			}
+			return *s
+		}(feedback.ProcessInfo),
+		feedback.Email)
 	if err != nil {
 		return err
 	}
@@ -132,9 +129,9 @@ func InsertFileSubmission(feedBack dto.FeedbackDTO) error {
 	}
 
 	// Insert file data
-	for _, fileInfo := range feedBack.Files {
+	for _, fileInfo := range feedback.Files {
 		_, err = tx.Exec("INSERT INTO file (feedback_id, file_name, file_path, file_size) VALUES (?, ?, ?, ?)",
-			feedbackID, fileInfo.Filename, fileInfo.FilePathOnOss, fileInfo.FileSize)
+			feedbackID, fileInfo.FileName, fileInfo.FilePathOnOss, fileInfo.FileSize)
 		if err != nil {
 			return err
 		}
@@ -149,24 +146,32 @@ func InsertFileSubmission(feedBack dto.FeedbackDTO) error {
 }
 
 // 查询所有记录信息
-func QueryFeedback(pageIndex int, pageSize int) ([]dto.FeedbackDTO, error) {
+func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 	var (
-		query     string
-		result    []dto.FeedbackDTO
-		resultMap map[int]*dto.FeedbackDTO
+		query      string
+		realResult dto.QueryFeedback
+		result     []dto.FeedbackDTO
+		resultMap  map[int]*dto.FeedbackDTO
 	)
 
-	query = `  
-        SELECT  
-            f.feedback_id, f.bug_description, f.impacted_module, f.occurring_frequency, f.reproduce_steps, f.user_info, f.process_info, f.email,  
-            fl.file_name, fl.file_path, fl.file_size  
-        FROM  
-            feedback f  
-        LEFT JOIN  
-            file fl ON f.feedback_id = fl.feedback_id  
-        ORDER BY  
-            f.feedback_id  
-    `
+	// 查询feedback表的总条数
+	var totalCount int
+	err := instance.QueryRow("SELECT COUNT(*) FROM feedback").Scan(&totalCount)
+	if err != nil {
+		return realResult, err
+	}
+
+	query = `
+	    SELECT
+	        f.feedback_id, f.bug_description, f.impacted_module, f.occurring_frequency, f.reproduce_steps, f.user_info, f.process_info, f.email,
+	        fl.file_name, fl.file_path, fl.file_size
+	    FROM
+	        feedback f
+	    LEFT JOIN
+	        file fl ON f.feedback_id = fl.feedback_id
+	    ORDER BY
+	        f.feedback_id
+	`
 
 	// 如果pageIndex不是-1，则添加LIMIT和OFFSET进行分页
 	if pageIndex != -1 {
@@ -176,7 +181,7 @@ func QueryFeedback(pageIndex int, pageSize int) ([]dto.FeedbackDTO, error) {
 
 	rows, err := instance.Query(query)
 	if err != nil {
-		return nil, err
+		return realResult, err
 	}
 	defer rows.Close()
 
@@ -189,7 +194,7 @@ func QueryFeedback(pageIndex int, pageSize int) ([]dto.FeedbackDTO, error) {
 			feedbackID         int
 			bugDescription     string
 			impactedModule     string
-			occurringFrequency string
+			occurringFrequency int
 			reproduceSteps     string
 			userInfo           string
 			processInfo        string
@@ -213,22 +218,27 @@ func QueryFeedback(pageIndex int, pageSize int) ([]dto.FeedbackDTO, error) {
 			&fileSize,
 		)
 		if err != nil {
-			return nil, err
+			return realResult, err
 		}
 
+		// 如果已经有了该feedbackID的记录，则追加文件信息
 		if feedback, exists := resultMap[feedbackID]; exists {
-			feedback.Files = append(feedback.Files, dto.FeedBackFile{
-				Filename:      filename,
-				FilePathOnOss: filePathOnOss,
-				FileSize:      fileSize,
-			})
-		} else {
-			files := []dto.FeedBackFile{}
-			files = append(files, dto.FeedBackFile{
-				Filename:      filename,
-				FilePathOnOss: filePathOnOss,
-				FileSize:      fileSize,
-			})
+			if filename != "" {
+				feedback.Files = append(feedback.Files, dto.FeedbackFile{
+					FileName:      filename,
+					FilePathOnOss: "https://" + configwrapper.Cfg.Oss.BucketName + "." + configwrapper.Cfg.Oss.OssEndpoint + "/" + filePathOnOss,
+					FileSize:      fileSize,
+				})
+			}
+		} else { // 如果还没有该feedbackID的记录，则创建新的记录
+			files := []dto.FeedbackFile{}
+			if filename != "" {
+				files = append(files, dto.FeedbackFile{
+					FileName:      filename,
+					FilePathOnOss: "https://" + configwrapper.Cfg.Oss.BucketName + "." + configwrapper.Cfg.Oss.OssEndpoint + "/" + filePathOnOss,
+					FileSize:      fileSize,
+				})
+			}
 
 			resultMap[feedbackID] = &dto.FeedbackDTO{
 				ImpactedModule:     impactedModule,
@@ -247,5 +257,71 @@ func QueryFeedback(pageIndex int, pageSize int) ([]dto.FeedbackDTO, error) {
 		result = append(result, *feedback)
 	}
 
-	return result, nil
+	realResult.PageData = result
+	realResult.TotalSize = totalCount
+	realResult.CurrentPageIndex = pageIndex
+
+	return realResult, nil
+}
+
+type FeedbackRelatedFile struct {
+	FeedbackID  int
+	FileOssPath []string
+}
+
+func QueryRelatedFilesByFeedbackID(feedbackIDs []int) []FeedbackRelatedFile {
+	var feedbackRelatedFiles []FeedbackRelatedFile
+
+	if feedbackIDs == nil || len(feedbackIDs) == 0 {
+		return feedbackRelatedFiles
+	}
+
+	query := "SELECT file_path FROM file WHERE feedback_id = ?"
+
+	for _, feedbackID := range feedbackIDs {
+		feedbackRelatedFiles = append(feedbackRelatedFiles, FeedbackRelatedFile{
+			FeedbackID:  feedbackID,
+			FileOssPath: []string{},
+		})
+
+		rows, err := instance.Query(query, feedbackID)
+		if err != nil {
+			logwrapper.Logger.Error(err)
+			return feedbackRelatedFiles
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var filePathOnOss string
+
+			err = rows.Scan(&filePathOnOss)
+			if err != nil {
+				logwrapper.Logger.Error(err)
+				return feedbackRelatedFiles
+			}
+
+			feedbackRelatedFiles[len(feedbackRelatedFiles)-1].FileOssPath = append(
+				feedbackRelatedFiles[len(feedbackRelatedFiles)-1].FileOssPath,
+				filePathOnOss,
+			)
+		}
+	}
+
+	return feedbackRelatedFiles
+}
+
+func DeleteFeedbackByID(feedbackIDs []int) {
+	var builder strings.Builder
+	builder.WriteString("DELETE FROM feedback WHERE feedback_id IN (")
+
+	for i, id := range feedbackIDs {
+		builder.WriteString(fmt.Sprintf("%d", id))
+		if i < len(feedbackIDs)-1 {
+			builder.WriteString(",")
+		}
+	}
+
+	builder.WriteString(")")
+
+	instance.Exec(builder.String())
 }

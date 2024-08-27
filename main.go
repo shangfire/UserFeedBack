@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-12 11:38:02
- * @LastEditTime: 2024-08-20 17:28:51
+ * @LastEditTime: 2024-08-27 19:11:12
  * @FilePath: \UserFeedBack\main.go
  * @Description:
  */
@@ -40,7 +40,7 @@ func reportFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if reqBody.ImpactedModule == "" || reqBody.OccurringFrequency == "" || reqBody.BugDescription == "" || reqBody.ReproduceSteps == "" {
+	if reqBody.ImpactedModule == "" || reqBody.BugDescription == "" || reqBody.ReproduceSteps == "" {
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
@@ -96,7 +96,7 @@ func queryFeedback(w http.ResponseWriter, r *http.Request) {
 func queryUploadSavePath(w http.ResponseWriter, r *http.Request) {
 	// RequestBody 是从客户端接收的数据结构
 	type RequestBody struct {
-		Filenames []string `json:"filenames"`
+		Files []string `json:"files"`
 	}
 
 	if r.Method != "POST" {
@@ -111,7 +111,7 @@ func queryUploadSavePath(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respBody, err := osswrapper.GenerateSecurityToken(reqBody.Filenames)
+	respBody, err := osswrapper.GenerateSecurityToken(reqBody.Files)
 	if err != nil {
 		http.Error(w, "Failed to generate security token", http.StatusInternalServerError)
 		return
@@ -123,6 +123,47 @@ func queryUploadSavePath(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
+}
+
+/**
+ * @description:
+ * @param {http.ResponseWriter} w
+ * @param {*http.Request} r
+ * @return {*}
+ */
+func deleteFeedback(w http.ResponseWriter, r *http.Request) {
+	// RequestBody 是从客户端接收的数据结构
+	type RequestBody struct {
+		FeedBackIDs []int `json:"feedbackID"`
+	}
+
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var reqBody RequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+		return
+	}
+
+	queryResult := dbwrapper.QueryRelatedFilesByFeedbackID(reqBody.FeedBackIDs)
+	var feedbackIDs []int
+	var ossFiles []string
+	for _, item := range queryResult {
+		feedbackIDs = append(feedbackIDs, item.FeedbackID)
+		for _, itemPath := range item.FileOssPath {
+			ossFiles = append(ossFiles, itemPath)
+		}
+	}
+
+	dbwrapper.DeleteFeedbackByID(feedbackIDs)
+	osswrapper.DeleteFileOnOssByPath(ossFiles)
+
+	// 响应客户端已完成
+	fmt.Fprintf(w, "Feedback delete successfully")
 }
 
 func main() {
@@ -159,6 +200,7 @@ func main() {
 	http.HandleFunc("/api/queryFeedback", queryFeedback)
 	http.HandleFunc("/api/reportFeedback", reportFeedback)
 	http.HandleFunc("/api/queryUploadSavePath", queryUploadSavePath)
+	http.HandleFunc("/api/deleteFeedback", deleteFeedback)
 
 	logwrapper.Logger.Info("Server is running")
 
