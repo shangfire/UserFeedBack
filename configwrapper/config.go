@@ -14,14 +14,16 @@ import (
 )
 
 type Oss struct {
-	OssAccessKeyId     string `json:"accessKeyId"`
-	OssAccessKeySecret string `json:"accessKeySecret"`
-	OssEndpoint        string `json:"ossEndpoint"`
-	StsEndpoint        string `json:"stsEndpoint"`
-	FeedbackRole       string `json:"feedbackRole"`
-	BucketName         string `json:"bucketName"`
-	DirFeedback        string `json:"dirFeedback"`
-	RoleSessionName    string `json:"roleSessionName"`
+	OssAccessKeyId          string `json:"accessKeyId"`
+	OssAccessKeySecret      string `json:"accessKeySecret"`
+	OssEndpoint             string `json:"ossEndpoint"`
+	StsEndpoint             string `json:"stsEndpoint"`
+	FeedbackRole            string `json:"feedbackRole"`
+	BucketName              string `json:"bucketName"`
+	DirFeedback             string `json:"dirFeedback"`
+	RoleSessionName         string `json:"roleSessionName"`
+	AdminOssAccessKeyId     string `json:"adminAccessKeyId"`
+	AdminOssAccessKeySecret string `json:"adminAccessKeySecret"`
 }
 
 type Database struct {

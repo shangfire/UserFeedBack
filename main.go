@@ -159,8 +159,8 @@ func deleteFeedback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	dbwrapper.DeleteFeedbackByID(feedbackIDs)
 	osswrapper.DeleteFileOnOssByPath(ossFiles)
+	dbwrapper.DeleteFeedbackByID(feedbackIDs)
 
 	// 响应客户端已完成
 	fmt.Fprintf(w, "Feedback delete successfully")

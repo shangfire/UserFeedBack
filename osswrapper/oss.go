@@ -43,7 +43,7 @@ func Init() error {
 	stsClient = _stsClient
 
 	var _ossClient *oss.Client
-	_ossClient, _err = oss.New(zgconfig.Cfg.Oss.OssEndpoint, zgconfig.Cfg.Oss.OssAccessKeyId, zgconfig.Cfg.Oss.OssAccessKeySecret)
+	_ossClient, _err = oss.New(zgconfig.Cfg.Oss.OssEndpoint, zgconfig.Cfg.Oss.AdminOssAccessKeyId, zgconfig.Cfg.Oss.AdminOssAccessKeySecret)
 	if _err != nil {
 		return _err
 	}
@@ -177,9 +177,9 @@ func DeleteFileOnOssByPath(path []string) error {
 	}
 
 	for _, ossPath := range path {
-		objectName := filepath.Base(ossPath)
-		err = bucket.DeleteObject(objectName)
+		err = bucket.DeleteObject(ossPath)
 		if err != nil {
+			logger.Logger.Error("error deleting file:", err)
 			return err
 		}
 	}

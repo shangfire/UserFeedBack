@@ -1,25 +1,30 @@
-<!--
- * @Author: shanghanjin
- * @Date: 2024-07-30 10:09:12
- * @LastEditTime: 2024-08-25 20:06:55
- * @FilePath: \UserFeedBack\html\query\index.html
- * @Description: 
--->
 <!DOCTYPE html>  
 <html lang="en">  
 <head>  
     <meta charset="UTF-8">  
     <meta name="viewport" content="width=device-width, initial-scale=1.0">  
-    <title>Feedback Viewer</title>  
+    <title>反馈记录</title>  
 </head>  
 <body>  
-    <h1>反馈结果查询</h1>  
-    <ul id="feedbacks"></ul>  
-    <div id="feedbackDetail" style="display:none;">  
-        <h2>详细信息</h2>  
-        <div id="detailContent"></div>  
-    </div>  
+    <h1>反馈列表</h1>  
+    <table id="dataList">  
+        <thead>  
+            <tr>  
+                <th>影响模块</th>  
+                <th>发生频率</th>  
+                <th>Bug描述</th>
+                <th>产生步骤</th>
+                <th>Email</th>
+                <th>附件</th>
+                <th>操作</th>  
+            </tr>  
+        </thead>  
+        <tbody>  
+        </tbody>  
+    </table>  
   
+    <div class="pagination" id="pagination"></div>
+
     <script src="js/query.js"></script>  
 </body>  
 </html>

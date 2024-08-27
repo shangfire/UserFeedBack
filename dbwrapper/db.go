@@ -150,8 +150,8 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 	var (
 		query      string
 		realResult dto.QueryFeedback
-		result     []dto.FeedbackDTO
-		resultMap  map[int]*dto.FeedbackDTO
+		result     []dto.FeedbackQuery
+		resultMap  map[int]*dto.FeedbackQuery
 	)
 
 	// 查询feedback表的总条数
@@ -185,8 +185,8 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 	}
 	defer rows.Close()
 
-	result = []dto.FeedbackDTO{}
-	resultMap = make(map[int]*dto.FeedbackDTO)
+	result = []dto.FeedbackQuery{}
+	resultMap = make(map[int]*dto.FeedbackQuery)
 
 	// 处理查询结果
 	for rows.Next() {
@@ -199,9 +199,9 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 			userInfo           string
 			processInfo        string
 			email              string
-			filename           string
-			filePathOnOss      string
-			fileSize           int64
+			filename           sql.NullString
+			filePathOnOss      sql.NullString
+			fileSize           sql.NullInt64
 		)
 
 		err = rows.Scan(
@@ -223,30 +223,31 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 
 		// 如果已经有了该feedbackID的记录，则追加文件信息
 		if feedback, exists := resultMap[feedbackID]; exists {
-			if filename != "" {
+			if filename.Valid {
 				feedback.Files = append(feedback.Files, dto.FeedbackFile{
-					FileName:      filename,
-					FilePathOnOss: "https://" + configwrapper.Cfg.Oss.BucketName + "." + configwrapper.Cfg.Oss.OssEndpoint + "/" + filePathOnOss,
-					FileSize:      fileSize,
+					FileName:      filename.String,
+					FilePathOnOss: "https://" + configwrapper.Cfg.Oss.BucketName + "." + configwrapper.Cfg.Oss.OssEndpoint + "/" + filePathOnOss.String,
+					FileSize:      fileSize.Int64,
 				})
 			}
 		} else { // 如果还没有该feedbackID的记录，则创建新的记录
 			files := []dto.FeedbackFile{}
-			if filename != "" {
+			if filename.Valid {
 				files = append(files, dto.FeedbackFile{
-					FileName:      filename,
-					FilePathOnOss: "https://" + configwrapper.Cfg.Oss.BucketName + "." + configwrapper.Cfg.Oss.OssEndpoint + "/" + filePathOnOss,
-					FileSize:      fileSize,
+					FileName:      filename.String,
+					FilePathOnOss: "https://" + configwrapper.Cfg.Oss.BucketName + "." + configwrapper.Cfg.Oss.OssEndpoint + "/" + filePathOnOss.String,
+					FileSize:      fileSize.Int64,
 				})
 			}
 
-			resultMap[feedbackID] = &dto.FeedbackDTO{
+			resultMap[feedbackID] = &dto.FeedbackQuery{
+				FeedbackID:         feedbackID,
 				ImpactedModule:     impactedModule,
 				OccurringFrequency: occurringFrequency,
 				BugDescription:     bugDescription,
 				ReproduceSteps:     reproduceSteps,
 				UserInfo:           userInfo,
-				ProcessInfo:        &processInfo,
+				ProcessInfo:        processInfo,
 				Email:              email,
 				Files:              files,
 			}
@@ -272,7 +273,7 @@ type FeedbackRelatedFile struct {
 func QueryRelatedFilesByFeedbackID(feedbackIDs []int) []FeedbackRelatedFile {
 	var feedbackRelatedFiles []FeedbackRelatedFile
 
-	if feedbackIDs == nil || len(feedbackIDs) == 0 {
+	if len(feedbackIDs) == 0 {
 		return feedbackRelatedFiles
 	}
 
