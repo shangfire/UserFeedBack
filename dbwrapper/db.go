@@ -1,9 +1,9 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-25 20:51:47
- * @LastEditTime: 2024-08-27 19:22:11
+ * @LastEditTime: 2024-08-29 19:47:59
  * @FilePath: \UserFeedBack\dbwrapper\db.go
- * @Description:1
+ * @Description: 数据库操作封装
  */
 package dbwrapper
 
@@ -13,6 +13,7 @@ import (
 	"UserFeedBack/logwrapper"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -31,7 +32,7 @@ func InitDB() {
 	once.Do(func() {
 		var err error
 		// 连接到 MySQL 数据库
-		address := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+		address := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
 			configwrapper.Cfg.Database.User,
 			configwrapper.Cfg.Database.Password,
 			configwrapper.Cfg.Database.Host,
@@ -160,23 +161,24 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
 		return realResult, err
 	}
 
-	query = `
-	    SELECT
-	        f.feedback_id, f.bug_description, f.impacted_module, f.occurring_frequency, f.reproduce_steps, f.user_info, f.process_info, f.email, f.app_version, f.time_stamp,
-	        fl.file_name, fl.file_path, fl.file_size
-	    FROM
-	        feedback f
-	    LEFT JOIN
-	        file fl ON f.feedback_id = fl.feedback_id
-	    ORDER BY
-	        f.feedback_id
-	`
-
-	// 如果pageIndex不是-1，则添加LIMIT和OFFSET进行分页
-	if pageIndex != -1 {
-		offset := pageIndex * pageSize
-		query += fmt.Sprintf(" LIMIT %d OFFSET %d", pageSize, offset)
+	var limit string
+	if pageIndex >= 0 {
+		limit = fmt.Sprintf(" LIMIT %d OFFSET %d", pageSize, pageIndex*pageSize)
 	}
+
+	query = fmt.Sprintf(`  
+        SELECT  
+            f.feedback_id, f.bug_description, f.impacted_module, f.occurring_frequency, f.reproduce_steps, f.user_info, f.process_info, f.email, f.app_version, f.time_stamp,  
+            fl.file_name, fl.file_path, fl.file_size  
+        FROM  
+            (SELECT feedback_id FROM feedback ORDER BY feedback_id%s) AS sub  
+        JOIN  
+            feedback f ON sub.feedback_id = f.feedback_id  
+        LEFT JOIN  
+            file fl ON f.feedback_id = fl.feedback_id  
+        ORDER BY  
+            f.feedback_id;  
+    `, limit)
 
 	rows, err := instance.Query(query)
 	if err != nil {
@@ -207,9 +209,9 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
 
 		err = rows.Scan(
 			&feedbackID,
+			&bugDescription,
 			&impactedModule,
 			&occurringFrequency,
-			&bugDescription,
 			&reproduceSteps,
 			&userInfo,
 			&processInfo,
@@ -259,8 +261,16 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
 		}
 	}
 
-	for _, feedback := range resultMap {
-		result = append(result, *feedback)
+	// map是无序的，这里需要对key排序后遍历
+	keys := make([]int, 0, len(resultMap))
+	for k := range resultMap {
+		keys = append(keys, k)
+	}
+
+	sort.Ints(keys)
+
+	for _, k := range keys {
+		result = append(result, *resultMap[k])
 	}
 
 	realResult.PageData = result
@@ -330,4 +340,8 @@ func DeleteFeedbackByID(feedbackIDs []int) {
 	builder.WriteString(")")
 
 	instance.Exec(builder.String())
+}
+
+func Test() {
+
 }

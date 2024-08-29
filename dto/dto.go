@@ -1,9 +1,9 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-20 15:00:52
- * @LastEditTime: 2024-08-27 14:44:23
+ * @LastEditTime: 2024-08-29 11:39:05
  * @FilePath: \UserFeedBack\dto\dto.go
- * @Description:
+ * @Description: 公共结构体
  */
 package dto
 
