@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -56,7 +57,9 @@ func InitDB() {
 			reproduce_steps TEXT NOT NULL,
 			user_info TEXT,
 			process_info TEXT,
-			email TEXT
+			email TEXT,
+			app_version TEXT,
+			time_stamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		`
 
@@ -72,7 +75,7 @@ func InitDB() {
 			file_name VARCHAR(255) NOT NULL,
 			file_path VARCHAR(255) NOT NULL,
 			file_size BIGINT,
-			FOREIGN KEY (feedback_id) REFERENCES Feedback(feedback_id) ON DELETE CASCADE
+			FOREIGN KEY (feedback_id) REFERENCES feedback(feedback_id) ON DELETE CASCADE
 		);
 		`
 
@@ -96,7 +99,7 @@ func CloseDB() error {
 }
 
 // 提交数据到数据库
-func InsertFileSubmission(feedback dto.FeedbackDTO) error {
+func InsertFileSubmission(feedback dto.FeedbackUpload) error {
 	// Start a transaction
 	tx, err := instance.Begin()
 	if err != nil {
@@ -105,19 +108,15 @@ func InsertFileSubmission(feedback dto.FeedbackDTO) error {
 	defer tx.Rollback()
 
 	// Insert feedback data
-	result, err := tx.Exec("INSERT INTO feedback (bug_description, impacted_module, occurring_frequency, reproduce_steps, user_info, process_info, email) VALUES (?, ?, ?, ?, ?, ?, ?)",
+	result, err := tx.Exec("INSERT INTO feedback (bug_description, impacted_module, occurring_frequency, reproduce_steps, user_info, process_info, email, app_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		feedback.BugDescription,
 		feedback.ImpactedModule,
 		feedback.OccurringFrequency,
 		feedback.ReproduceSteps,
 		feedback.UserInfo,
-		func(s *string) string {
-			if s == nil {
-				return ""
-			}
-			return *s
-		}(feedback.ProcessInfo),
-		feedback.Email)
+		"",
+		feedback.Email,
+		feedback.AppVersion)
 	if err != nil {
 		return err
 	}
@@ -146,12 +145,12 @@ func InsertFileSubmission(feedback dto.FeedbackDTO) error {
 }
 
 // 查询所有记录信息
-func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
+func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
 	var (
 		query      string
-		realResult dto.QueryFeedback
-		result     []dto.FeedbackQuery
-		resultMap  map[int]*dto.FeedbackQuery
+		realResult dto.FeedbackQueryAll
+		result     []dto.FeedbackQueryOne
+		resultMap  map[int]*dto.FeedbackQueryOne
 	)
 
 	// 查询feedback表的总条数
@@ -163,7 +162,7 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 
 	query = `
 	    SELECT
-	        f.feedback_id, f.bug_description, f.impacted_module, f.occurring_frequency, f.reproduce_steps, f.user_info, f.process_info, f.email,
+	        f.feedback_id, f.bug_description, f.impacted_module, f.occurring_frequency, f.reproduce_steps, f.user_info, f.process_info, f.email, f.app_version, f.time_stamp,
 	        fl.file_name, fl.file_path, fl.file_size
 	    FROM
 	        feedback f
@@ -185,8 +184,8 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 	}
 	defer rows.Close()
 
-	result = []dto.FeedbackQuery{}
-	resultMap = make(map[int]*dto.FeedbackQuery)
+	result = []dto.FeedbackQueryOne{}
+	resultMap = make(map[int]*dto.FeedbackQueryOne)
 
 	// 处理查询结果
 	for rows.Next() {
@@ -199,6 +198,8 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 			userInfo           string
 			processInfo        string
 			email              string
+			appVersion         string
+			timeStamp          time.Time
 			filename           sql.NullString
 			filePathOnOss      sql.NullString
 			fileSize           sql.NullInt64
@@ -213,6 +214,8 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 			&userInfo,
 			&processInfo,
 			&email,
+			&appVersion,
+			&timeStamp,
 			&filename,
 			&filePathOnOss,
 			&fileSize,
@@ -240,8 +243,10 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.QueryFeedback, error) {
 				})
 			}
 
-			resultMap[feedbackID] = &dto.FeedbackQuery{
+			resultMap[feedbackID] = &dto.FeedbackQueryOne{
 				FeedbackID:         feedbackID,
+				AppVersion:         appVersion,
+				TimeStamp:          timeStamp.UnixMilli(),
 				ImpactedModule:     impactedModule,
 				OccurringFrequency: occurringFrequency,
 				BugDescription:     bugDescription,

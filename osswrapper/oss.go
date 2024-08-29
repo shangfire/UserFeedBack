@@ -91,10 +91,10 @@ func GenerateSecurityToken(originalPaths []string) (*GenrateResult, error) {
 		extension := filepath.Ext(originalFileName)
 
 		// 生成oss上的存放路径
-		pathOnOss := fmt.Sprintf("%s/%s_%d%s",
+		pathOnOss := fmt.Sprintf("%s/%d/%s.%s",
 			zgconfig.Cfg.Oss.DirFeedback,
+			time.Now().UnixMilli(),
 			fileName,
-			time.Now().Unix(),
 			extension,
 		)
 		result.OssPathReflect = append(result.OssPathReflect, OssPathReflect{RawPath: originalPath, OssPath: pathOnOss})

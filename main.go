@@ -33,7 +33,7 @@ func reportFeedback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 解析body
-	var reqBody dto.FeedbackDTO
+	var reqBody dto.FeedbackUpload
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		http.Error(w, "Failed to parse request body", http.StatusBadRequest)

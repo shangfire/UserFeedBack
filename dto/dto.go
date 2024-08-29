@@ -13,25 +13,27 @@ type FeedbackFile struct {
 	FileSize      int64  `json:"fileSize"`
 }
 
-type QueryFeedback struct {
-	TotalSize        int             `json:"totalSize"`
-	CurrentPageIndex int             `json:"currentPageIndex"`
-	PageData         []FeedbackQuery `json:"pageData"`
-}
-
-type FeedbackDTO struct {
+type FeedbackUpload struct {
+	AppVersion         string         `json:"appVersion"`
 	ImpactedModule     string         `json:"impactedModule"`
 	OccurringFrequency int            `json:"occurringFrequency"`
 	BugDescription     string         `json:"bugDescription"`
 	ReproduceSteps     string         `json:"reproduceSteps"`
 	UserInfo           string         `json:"userInfo"`
-	ProcessInfo        *string        `json:"processInfo,omitempty"`
 	Email              string         `json:"email"`
 	Files              []FeedbackFile `json:"files"`
 }
 
-type FeedbackQuery struct {
+type FeedbackQueryAll struct {
+	TotalSize        int                `json:"totalSize"`
+	CurrentPageIndex int                `json:"currentPageIndex"`
+	PageData         []FeedbackQueryOne `json:"pageData"`
+}
+
+type FeedbackQueryOne struct {
 	FeedbackID         int            `json:"feedbackID"`
+	AppVersion         string         `json:"appVersion"`
+	TimeStamp          int64          `json:"timeStamp"`
 	ImpactedModule     string         `json:"impactedModule"`
 	OccurringFrequency int            `json:"occurringFrequency"`
 	BugDescription     string         `json:"bugDescription"`
