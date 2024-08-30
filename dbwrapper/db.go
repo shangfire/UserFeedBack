@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-25 20:51:47
- * @LastEditTime: 2024-08-29 19:47:59
+ * @LastEditTime: 2024-08-30 15:57:28
  * @FilePath: \UserFeedBack\dbwrapper\db.go
  * @Description: 数据库操作封装
  */
@@ -22,12 +22,16 @@ import (
 )
 
 var (
+	// 数据库单例
 	instance *sql.DB
-	once     sync.Once
+	// 单例标志
+	once sync.Once
 )
 
-// InitDB 初始化数据库连接
-// 方法名需要大写才能被外部包调用
+/**
+ * @description: 初始化数据库连接
+ * @return {*}
+ */
 func InitDB() {
 	once.Do(func() {
 		var err error
@@ -86,29 +90,29 @@ func InitDB() {
 	})
 }
 
-// GetDB 返回数据库连接的实例
-func GetDB() *sql.DB {
-	if instance == nil {
-		logwrapper.Logger.Fatal("Database not initialized")
-	}
-	return instance
-}
-
-// CloseDB 关闭数据库连接
+/**
+ * @description: 关闭数据库连接
+ * @return {*}
+ */
 func CloseDB() error {
 	return instance.Close()
 }
 
-// 提交数据到数据库
-func InsertFileSubmission(feedback dto.FeedbackUpload) error {
-	// Start a transaction
+/**
+ * @description: 提交反馈数据到数据库
+ * @param {dto.FeedbackUpload} feedback
+ * @return {*}
+ */
+func InsertFeedback(feedback dto.FeedbackUpload) error {
+	// 开启事务
 	tx, err := instance.Begin()
 	if err != nil {
 		return err
 	}
+	// 确保失败时能正确回滚
 	defer tx.Rollback()
 
-	// Insert feedback data
+	// 插入反馈数据
 	result, err := tx.Exec("INSERT INTO feedback (bug_description, impacted_module, occurring_frequency, reproduce_steps, user_info, process_info, email, app_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		feedback.BugDescription,
 		feedback.ImpactedModule,
@@ -122,13 +126,13 @@ func InsertFileSubmission(feedback dto.FeedbackUpload) error {
 		return err
 	}
 
-	// Get the last inserted ID
+	// 获取到最后插入的主键ID，也就是feedbackID
 	feedbackID, err := result.LastInsertId()
 	if err != nil {
 		return err
 	}
 
-	// Insert file data
+	// 插入文件数据
 	for _, fileInfo := range feedback.Files {
 		_, err = tx.Exec("INSERT INTO file (feedback_id, file_name, file_path, file_size) VALUES (?, ?, ?, ?)",
 			feedbackID, fileInfo.FileName, fileInfo.FilePathOnOss, fileInfo.FileSize)
@@ -137,7 +141,7 @@ func InsertFileSubmission(feedback dto.FeedbackUpload) error {
 		}
 	}
 
-	// Commit the transaction
+	// 提交事务
 	if err = tx.Commit(); err != nil {
 		return err
 	}
@@ -145,7 +149,12 @@ func InsertFileSubmission(feedback dto.FeedbackUpload) error {
 	return nil
 }
 
-// 查询所有记录信息
+/**
+ * @description: 查询所有反馈信息
+ * @param {int} pageIndex 分页索引
+ * @param {int} pageSize 分页大小
+ * @return {*}
+ */
 func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
 	var (
 		query      string
@@ -161,6 +170,7 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
 		return realResult, err
 	}
 
+	// 按分页大小和索引查询对应的反馈信息
 	var limit string
 	if pageIndex >= 0 {
 		limit = fmt.Sprintf(" LIMIT %d OFFSET %d", pageSize, pageIndex*pageSize)
@@ -273,6 +283,7 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
 		result = append(result, *resultMap[k])
 	}
 
+	// 填充反馈结果
 	realResult.PageData = result
 	realResult.TotalSize = totalCount
 	realResult.CurrentPageIndex = pageIndex
@@ -285,6 +296,11 @@ type FeedbackRelatedFile struct {
 	FileOssPath []string
 }
 
+/**
+ * @description: 查询feedbackid相关的文件
+ * @param {[]int} feedbackIDs 要查询的feedbackid数组
+ * @return {*}
+ */
 func QueryRelatedFilesByFeedbackID(feedbackIDs []int) []FeedbackRelatedFile {
 	var feedbackRelatedFiles []FeedbackRelatedFile
 
@@ -292,6 +308,7 @@ func QueryRelatedFilesByFeedbackID(feedbackIDs []int) []FeedbackRelatedFile {
 		return feedbackRelatedFiles
 	}
 
+	// 查询feedbackid相关的文件信息
 	query := "SELECT file_path FROM file WHERE feedback_id = ?"
 
 	for _, feedbackID := range feedbackIDs {
@@ -316,6 +333,7 @@ func QueryRelatedFilesByFeedbackID(feedbackIDs []int) []FeedbackRelatedFile {
 				return feedbackRelatedFiles
 			}
 
+			// 填充结果到返回值
 			feedbackRelatedFiles[len(feedbackRelatedFiles)-1].FileOssPath = append(
 				feedbackRelatedFiles[len(feedbackRelatedFiles)-1].FileOssPath,
 				filePathOnOss,
@@ -326,7 +344,13 @@ func QueryRelatedFilesByFeedbackID(feedbackIDs []int) []FeedbackRelatedFile {
 	return feedbackRelatedFiles
 }
 
+/**
+ * @description: 删除feedback表
+ * @param {[]int} feedbackIDs feedbackid数组
+ * @return {*}
+ */
 func DeleteFeedbackByID(feedbackIDs []int) {
+	// 构造删除语句
 	var builder strings.Builder
 	builder.WriteString("DELETE FROM feedback WHERE feedback_id IN (")
 
@@ -339,9 +363,6 @@ func DeleteFeedbackByID(feedbackIDs []int) {
 
 	builder.WriteString(")")
 
+	// 执行删除语句
 	instance.Exec(builder.String())
-}
-
-func Test() {
-
 }

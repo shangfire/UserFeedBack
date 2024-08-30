@@ -3,7 +3,7 @@
  * @Date: 2024-08-12 11:38:02
  * @LastEditTime: 2024-08-30 11:45:51
  * @FilePath: \UserFeedBack\main.go
- * @Description:
+ * @Description:main
  */
 package main
 
@@ -27,6 +27,7 @@ import (
  * @return {*}
  */
 func reportFeedback(w http.ResponseWriter, r *http.Request) {
+	// 检查请求方法
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -46,30 +47,30 @@ func reportFeedback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 相关内容写入数据库
-	dbwrapper.InsertFileSubmission(reqBody)
+	dbwrapper.InsertFeedback(reqBody)
 
 	// 响应客户端已完成
 	fmt.Fprintf(w, "Files uploaded successfully")
 }
 
 /**
- * @description: 查询文件接口
+ * @description: 查询反馈接口
  * @param {http.ResponseWriter} w
  * @param {*http.Request} r
  * @return {*}
  */
 func queryFeedback(w http.ResponseWriter, r *http.Request) {
+	// 检查请求方法
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// 解析body
 	type RequestBody struct {
 		PageIndex int `json:"pageIndex"`
 		PageSize  int `json:"pageSize"`
 	}
-
-	// 解析body
 	var reqBody RequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
@@ -77,14 +78,20 @@ func queryFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 查询数据库
 	feedbacks, err := dbwrapper.QueryFeedback(reqBody.PageIndex, reqBody.PageSize)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// 写入查询结果
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(feedbacks)
+	err = json.NewEncoder(w).Encode(feedbacks)
+	if err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 /**
@@ -94,16 +101,16 @@ func queryFeedback(w http.ResponseWriter, r *http.Request) {
  * @return {*}
  */
 func queryUploadSavePath(w http.ResponseWriter, r *http.Request) {
-	// RequestBody 是从客户端接收的数据结构
-	type RequestBody struct {
-		Files []string `json:"files"`
-	}
-
+	// 检查请求方法
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// 解析body
+	type RequestBody struct {
+		Files []string `json:"files"`
+	}
 	var reqBody RequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
@@ -111,6 +118,7 @@ func queryUploadSavePath(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// OSS生成上传路径
 	respBody, err := osswrapper.GenerateSecurityToken(reqBody.Files)
 	if err != nil {
 		http.Error(w, "Failed to generate security token", http.StatusInternalServerError)
@@ -118,6 +126,7 @@ func queryUploadSavePath(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 将响应数据返回给客户端
+	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(respBody)
 	if err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
@@ -126,22 +135,22 @@ func queryUploadSavePath(w http.ResponseWriter, r *http.Request) {
 }
 
 /**
- * @description:
+ * @description: 删除反馈接口
  * @param {http.ResponseWriter} w
  * @param {*http.Request} r
  * @return {*}
  */
 func deleteFeedback(w http.ResponseWriter, r *http.Request) {
-	// RequestBody 是从客户端接收的数据结构
-	type RequestBody struct {
-		FeedBackIDs []int `json:"feedbackID"`
-	}
-
+	// 检查请求方法
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// 解析body
+	type RequestBody struct {
+		FeedBackIDs []int `json:"feedbackID"`
+	}
 	var reqBody RequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
@@ -149,6 +158,7 @@ func deleteFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 查询关联的文件
 	queryResult := dbwrapper.QueryRelatedFilesByFeedbackID(reqBody.FeedBackIDs)
 	var feedbackIDs []int
 	var ossFiles []string
@@ -159,7 +169,10 @@ func deleteFeedback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 在oss上删除文件
 	osswrapper.DeleteFileOnOssByPath(ossFiles)
+
+	// 数据库删除记录
 	dbwrapper.DeleteFeedbackByID(feedbackIDs)
 
 	// 响应客户端已完成
