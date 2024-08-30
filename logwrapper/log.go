@@ -1,3 +1,10 @@
+/*
+ * @Author: shanghanjin
+ * @Date: 2024-08-12 11:38:01
+ * @LastEditTime: 2024-08-30 15:46:23
+ * @FilePath: \UserFeedBack\logwrapper\log.go
+ * @Description: 日志封装
+ */
 package logwrapper
 
 import (
@@ -17,7 +24,11 @@ var Logger *logrus.Logger
 // 自定义空结构体
 type CustomFormatter struct{}
 
-// 实现logrus.Formatter接口，将日志按照我们期望的格式输出
+/**
+ * @description: 实现logrus.Formatter接口，将日志按照期望的格式输出
+ * @param {*logrus.Entry} entry 日志相关参数结构体
+ * @return {*} format之后的日志信息
+ */
 func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	// 构建时间戳
 	timestamp := entry.Time.Format(time.RFC3339)
@@ -38,7 +49,12 @@ func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	return []byte(msg), nil
 }
 
-// 初始化函数，设置日志输出路径和级别
+/**
+ * @description: 初始化函数，设置日志输出路径和级别
+ * @param {string} logPath 日志输出路径
+ * @param {logrus.Level} logLevel 日志级别
+ * @return {*}
+ */
 func Init(logPath string, logLevel logrus.Level) error {
 	// 日志目录不存在且创建失败则返回错误
 	dir := filepath.Dir(logPath)

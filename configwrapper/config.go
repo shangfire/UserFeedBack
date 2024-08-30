@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-19 17:51:57
- * @LastEditTime: 2024-08-19 19:03:25
+ * @LastEditTime: 2024-08-30 15:58:17
  * @FilePath: \UserFeedBack\configwrapper\config.go
  * @Description:
  */
@@ -41,6 +41,11 @@ type Config struct {
 
 var Cfg *Config
 
+/**
+ * @description: 读取初始化文件到结构体
+ * @param {string} configFilePath config文件路径
+ * @return {*}
+ */
 func Init(configFilePath string) error {
 	Cfg = &Config{}
 

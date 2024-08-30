@@ -1,9 +1,12 @@
+// 分页大小
 const PageSize = 10;
 
+// 监听页面加载事件
 document.addEventListener('DOMContentLoaded', function() {  
     fetchData(0, PageSize);
 });  
   
+// 请求数据
 function fetchData(pageIndex, pageSize) {  
     // 准备JSON数据  
     const postData = JSON.stringify({  
@@ -20,7 +23,8 @@ function fetchData(pageIndex, pageSize) {
         body: postData  
     };  
   
-    fetch('/api/queryFeedback', options) // 假设这是您的API URL  
+    // 执行fetch 
+    fetch('/api/queryFeedback', options) 
         .then(response => {  
             if (!response.ok) {  
                 throw new Error('Network response was not ok');  
@@ -28,7 +32,8 @@ function fetchData(pageIndex, pageSize) {
             return response.json();  
         })  
         .then(data => {  
-            renderFeedbackList(data); // 假设API返回的数据中有一个名为pageData的数组  
+            // 渲染返回结果  
+            renderFeedbackList(data); 
 
             // 渲染分页按钮  
             const paginationDiv = document.getElementById('pagination');  
@@ -38,6 +43,7 @@ function fetchData(pageIndex, pageSize) {
                 return
             }
 
+            // 向上取整分页数量
             var totalPages = Math.ceil(data.totalSize / PageSize);
     
             // 遍历页码并添加按钮  
@@ -60,6 +66,7 @@ function fetchData(pageIndex, pageSize) {
         .catch(error => console.error('Error fetching data:', error));  
 }  
   
+// 转换level为字符串
 function frequencyString(level) {
     if (level === 0) {
         return '偶尔'
@@ -75,10 +82,11 @@ function frequencyString(level) {
     }
 }
 
+// 转换时间戳为字符串
 function formatTimestamp(timestamp) {  
     // 创建一个Date对象  
     const date = new Date(timestamp);  
-    
+
     // 使用getFullYear(), getMonth() + 1, getDate(), getHours(), getMinutes(), getSeconds() 获取年月日时分秒  
     // 注意：getMonth() 返回的是0-11，所以需要+1  
     const year = date.getUTCFullYear();  
@@ -87,11 +95,12 @@ function formatTimestamp(timestamp) {
     const hours = String(date.getUTCHours()).padStart(2, '0');  
     const minutes = String(date.getUTCMinutes()).padStart(2, '0');  
     const seconds = String(date.getUTCSeconds()).padStart(2, '0');  
-    
+
     // 拼接成YYYY-MM-DD HH:MM:SS格式  
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;  
-  }  
+}  
 
+// 渲染请求数据
 function renderFeedbackList(feedbacks) {  
     const tbody = document.querySelector('#dataList tbody');  
     tbody.innerHTML = ''; // 清空之前的列表项（如果有的话）  
@@ -120,11 +129,11 @@ function renderFeedbackList(feedbacks) {
         // 创建文件列表的容器  
         const fileList = document.createElement('ul');  
         // 遍历文件数组并添加下载链接  
-        (item.files || []).forEach(file => { // 假设 item.files 是一个包含文件对象的数组  
+        (item.files || []).forEach(file => {
             const fileItem = document.createElement('li');  
             const downloadLink = document.createElement('a');  
-            downloadLink.href = file.filePathOnOss; // 假设每个文件对象都有一个 url 属性  
-            downloadLink.textContent = file.fileName; // 假设每个文件对象都有一个 name 属性  
+            downloadLink.href = file.filePathOnOss;
+            downloadLink.textContent = file.fileName;
             downloadLink.target = '_blank'; // 新标签页打开  
             downloadLink.setAttribute('download', file.filename); 
             fileItem.appendChild(downloadLink);  
@@ -151,7 +160,7 @@ function renderFeedbackList(feedbacks) {
                 if (!response.ok) {  
                     throw new Error('Network response was not ok');  
                 }  
-                return response.text(); // 解析JSON响应（如果有的话）  
+                return response.text(); // 解析TEXT响应 
             })  
             .then(data => {  
                 console.log('Success:', data); // 处理成功的情况  
@@ -164,13 +173,14 @@ function renderFeedbackList(feedbacks) {
                 if (queryPageIndex < 0) {
                     queryPageIndex = 0;
                 }
+
+                // 重新请求数据
                 fetchData(queryPageIndex, PageSize);
             })  
             .catch(error => {  
                 console.error('There has been a problem with your fetch operation:', error);  
             });  
         };  
-
         cellOperate.appendChild(operationBtnDelete);
     });  
 }  

@@ -3,7 +3,7 @@
  * @Date: 2024-08-13 16:46:39
  * @LastEditTime: 2024-08-27 18:53:02
  * @FilePath: \UserFeedBack\osswrapper\oss.go
- * @Description:
+ * @Description: oss操作封装
  */
 package osswrapper
 
@@ -24,10 +24,18 @@ import (
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
+// sts客户端
 var stsClient *sts.Client
+
+// oss客户端
 var ossClient *oss.Client
 
+/**
+ * @description: 初始化OSS并生成sts和oss客户端
+ * @return {*}
+ */
 func Init() error {
+	// 生成sts客户端
 	config := &openapi.Config{
 		AccessKeyId:     tea.String(zgconfig.Cfg.Oss.OssAccessKeyId),
 		AccessKeySecret: tea.String(zgconfig.Cfg.Oss.OssAccessKeySecret),
@@ -42,6 +50,7 @@ func Init() error {
 
 	stsClient = _stsClient
 
+	// 生成oss客户端
 	var _ossClient *oss.Client
 	_ossClient, _err = oss.New(zgconfig.Cfg.Oss.OssEndpoint, zgconfig.Cfg.Oss.AdminOssAccessKeyId, zgconfig.Cfg.Oss.AdminOssAccessKeySecret)
 	if _err != nil {
@@ -67,13 +76,18 @@ type GenrateResult struct {
 	OssPathReflect  []OssPathReflect `json:"ossPathReflect"`
 }
 
+/**
+ * @description: 生成sts的上传token
+ * @param {[]string} originalPaths 原始文件路径数组
+ * @return {*} 生成结果
+ */
 func GenerateSecurityToken(originalPaths []string) (*GenrateResult, error) {
 	if len(originalPaths) == 0 {
 		logger.Logger.Error("empty file names provided")
 		return nil, errors.New("empty file names provided")
 	}
 
-	// 返回结果
+	// 声明返回结果
 	result := &GenrateResult{}
 	result.OssEndpoint = zgconfig.Cfg.Oss.OssEndpoint
 	result.BucketName = zgconfig.Cfg.Oss.BucketName
@@ -83,7 +97,7 @@ func GenerateSecurityToken(originalPaths []string) (*GenrateResult, error) {
 
 	// 遍历原始文件名数组生成新的文件名
 	for _, originalPath := range originalPaths {
-		// 以防万一，如果是完整路径也只使用文件名
+		// 只使用文件名
 		originalFileName := filepath.Base(originalPath)
 
 		// 提取文件名和扩展名
@@ -152,6 +166,7 @@ func GenerateSecurityToken(originalPaths []string) (*GenrateResult, error) {
 		return nil, err
 	}
 
+	// 填充返回结果
 	result.AccessKeyId = *stsResult.Body.Credentials.AccessKeyId
 	result.AccessKeySecret = *stsResult.Body.Credentials.AccessKeySecret
 	result.Expiration = *stsResult.Body.Credentials.Expiration
@@ -161,8 +176,8 @@ func GenerateSecurityToken(originalPaths []string) (*GenrateResult, error) {
 }
 
 /**
- * @description:
- * @param {[]string} path
+ * @description:删除oss上的文件
+ * @param {[]string} path oss路径
  * @return {*}
  */
 func DeleteFileOnOssByPath(path []string) error {
