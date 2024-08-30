@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-12 11:38:02
- * @LastEditTime: 2024-08-27 19:11:12
+ * @LastEditTime: 2024-08-30 11:45:51
  * @FilePath: \UserFeedBack\main.go
  * @Description:
  */
@@ -195,6 +195,10 @@ func main() {
 	// 提供浏览页面的服务
 	queryFS := http.FileServer(http.Dir("./html/query"))
 	http.Handle("/query/", http.StripPrefix("/query", queryFS))
+
+	// 提供vue测试项目页面的服务
+	vueFS := http.FileServer(http.Dir("./dist"))
+	http.Handle("/", vueFS)
 
 	// 设置各接口响应函数
 	http.HandleFunc("/api/queryFeedback", queryFeedback)
