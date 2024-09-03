@@ -1,30 +1,30 @@
 // 分页大小
-const PageSize = 10;
+const PageSize = 20;
+
+// 尝试从sessionStorage中获取当前页码，如果没有则默认为0  
+let currentPageIndex = parseInt(sessionStorage.getItem('currentPageIndex')) || 0;  
 
 // 监听页面加载事件
 document.addEventListener('DOMContentLoaded', function() {  
-    fetchData(0, PageSize);
+    fetchData();
 });  
   
 // 请求数据
-function fetchData(pageIndex, pageSize) {  
-    // 准备JSON数据  
-    const postData = JSON.stringify({  
-        pageIndex: pageIndex,  
-        pageSize: pageSize  
+function fetchData(pageIndex = currentPageIndex, pageSize = PageSize) {  
+    const params = new URLSearchParams({  
+        pageIndex: pageIndex.toString(),  
+        pageSize: pageSize.toString()  
     });  
+    const url = `/api/queryFeedback?${params.toString()}`;  
   
-    // 配置fetch请求  
+    // 配置 fetch 请求  
     const options = {  
-        method: 'POST',  
-        headers: {  
-            'Content-Type': 'application/json',  
-        },  
-        body: postData  
+        method: 'GET',  
+        // 对于 GET 请求，通常不需要设置 headers，除非有特定的需求  
     };  
   
     // 执行fetch 
-    fetch('/api/queryFeedback', options) 
+    fetch(url, options) 
         .then(response => {  
             if (!response.ok) {  
                 throw new Error('Network response was not ok');  
@@ -35,33 +35,11 @@ function fetchData(pageIndex, pageSize) {
             // 渲染返回结果  
             renderFeedbackList(data); 
 
-            // 渲染分页按钮  
-            const paginationDiv = document.getElementById('pagination');  
-            paginationDiv.innerHTML = ''; // 清空之前的分页按钮  
+            // 渲染分页按钮
+            renderFeedbackPagination(data);
 
-            if (data.totalSize === 0) {
-                return
-            }
-
-            // 向上取整分页数量
-            var totalPages = Math.ceil(data.totalSize / PageSize);
-    
-            // 遍历页码并添加按钮  
-            for (let i = 1; i <= totalPages; i++) {  
-                const button = document.createElement('button');  
-                button.textContent = i;  
-                button.classList.add('page-button');  
-                button.onclick = function() {  
-                    fetchData(this.textContent - 1, PageSize)
-                };  
-
-                if (i - 1 === data.currentPageIndex) {  
-                    button.disabled = true; // 禁用当前页码按钮（可选）  
-                    button.classList.add('active'); // 添加活动类（可选）  
-                }  
-
-                paginationDiv.appendChild(button);  
-            }  
+            // 存储当前请求的页面索引
+            sessionStorage.setItem('currentPageIndex', data.currentPageIndex.toString());
         })  
         .catch(error => console.error('Error fetching data:', error));  
 }  
@@ -82,6 +60,19 @@ function frequencyString(level) {
     }
 }
 
+function formatFileSize(bytes) {  
+    if (bytes === 0) return '0 B'; // 如果字节数为0，则直接返回'0 B'  
+  
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];  
+    let i = Math.floor(Math.log(bytes) / Math.log(1024)); // 计算索引，但不进行parseInt，因为要处理浮点数情况  
+  
+    // 如果字节数小于1KB，则i为0，直接返回字节数 + 'B'  
+    if (i === 0) return `${bytes} ${sizes[i]}`;  
+  
+    // 对于大于或等于1KB的情况，进行格式化  
+    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;  
+}  
+
 // 转换时间戳为字符串
 function formatTimestamp(timestamp) {  
     // 创建一个Date对象  
@@ -101,11 +92,11 @@ function formatTimestamp(timestamp) {
 }  
 
 // 渲染请求数据
-function renderFeedbackList(feedbacks) {  
+function renderFeedbackList(data) {  
     const tbody = document.querySelector('#dataList tbody');  
     tbody.innerHTML = ''; // 清空之前的列表项（如果有的话）  
   
-    feedbacks.pageData.forEach(item => {  
+    data.pageData.forEach(item => {  
         const row = tbody.insertRow();  
         const cellModule = row.insertCell(0);  
         const cellFreqency = row.insertCell(1);  
@@ -131,18 +122,29 @@ function renderFeedbackList(feedbacks) {
         // 遍历文件数组并添加下载链接  
         (item.files || []).forEach(file => {
             const fileItem = document.createElement('li');  
+            const fileDetails = document.createElement('span'); // 创建一个span来包含文件名和大小
+            const fileName = document.createTextNode(file.fileName); // 创建文本节点用于文件名  
+            const fileSize = document.createTextNode(` (${formatFileSize(file.fileSize)})`); // 假设fileSize是字节数，你可以根据需要调整格式  
+          
+            // 将文件名和大小添加到span中  
+            fileDetails.appendChild(fileName);  
+            fileDetails.appendChild(fileSize);  
+
             const downloadLink = document.createElement('a');  
-            downloadLink.href = file.filePathOnOss;
-            downloadLink.textContent = file.fileName;
+            downloadLink.href = file.filePathOnOss;  
+            downloadLink.textContent = fileDetails.textContent; // 使用span的textContent作为链接的文本  
             downloadLink.target = '_blank'; // 新标签页打开  
-            downloadLink.setAttribute('download', file.filename); 
+            downloadLink.setAttribute('download', file.fileName);
+
+            // 将链接添加到li元素中  
             fileItem.appendChild(downloadLink);  
-            fileList.appendChild(fileItem);  
+            fileList.appendChild(fileItem); 
         });  
 
         // 将文件列表添加到 cellFile 单元格  
         cellFile.appendChild(fileList);  
 
+        // 创建删除按钮
         const operationBtnDelete = document.createElement('button');  
         operationBtnDelete.textContent = '删除';  
         operationBtnDelete.onclick = function() {  
@@ -166,7 +168,7 @@ function renderFeedbackList(feedbacks) {
                 console.log('Success:', data); // 处理成功的情况  
 
                 let rowCount = tbody.rows.length;
-                let queryPageIndex = feedbacks.currentPageIndex;
+                let queryPageIndex = data.currentPageIndex;
                 if (rowCount === 1) {
                     queryPageIndex -= 1;
                 }
@@ -184,3 +186,33 @@ function renderFeedbackList(feedbacks) {
         cellOperate.appendChild(operationBtnDelete);
     });  
 }  
+
+// 渲染分页按钮 
+function renderFeedbackPagination(data) {  
+    const paginationDiv = document.getElementById('pagination');  
+    paginationDiv.innerHTML = ''; // 清空之前的分页按钮  
+
+    if (data.totalSize === 0) {
+        return
+    }
+
+    // 向上取整分页数量
+    var totalPages = Math.ceil(data.totalSize / PageSize);
+
+    // 遍历页码并添加按钮  
+    for (let i = 1; i <= totalPages; i++) {  
+        const button = document.createElement('button');  
+        button.textContent = i;  
+        button.classList.add('page-button');  
+        button.onclick = function() {  
+            fetchData(this.textContent - 1, PageSize)
+        };  
+
+        if (i - 1 === data.currentPageIndex) {  
+            button.disabled = true; // 禁用当前页码按钮（可选）  
+            button.classList.add('active'); // 添加活动类（可选）  
+        }  
+
+        paginationDiv.appendChild(button);  
+    }  
+}

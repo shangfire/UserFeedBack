@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-12 11:38:02
- * @LastEditTime: 2024-08-30 11:45:51
+ * @LastEditTime: 2024-09-03 16:07:27
  * @FilePath: \UserFeedBack\main.go
  * @Description:main
  */
@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/sirupsen/logrus"
 )
@@ -61,25 +62,36 @@ func reportFeedback(w http.ResponseWriter, r *http.Request) {
  */
 func queryFeedback(w http.ResponseWriter, r *http.Request) {
 	// 检查请求方法
-	if r.Method != "POST" {
+	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// 解析body
-	type RequestBody struct {
-		PageIndex int `json:"pageIndex"`
-		PageSize  int `json:"pageSize"`
+	pageIndexStr := r.URL.Query().Get("pageIndex")
+	pageSizeStr := r.URL.Query().Get("pageSize")
+
+	var pageIndex int
+	if pageIndexStr == "" {
+		pageIndex = 0
+	} else {
+		pageIndex, _ = strconv.Atoi(pageIndexStr)
+		if pageIndex < 0 {
+			pageIndex = 0
+		}
 	}
-	var reqBody RequestBody
-	err := json.NewDecoder(r.Body).Decode(&reqBody)
-	if err != nil {
-		http.Error(w, "Failed to parse request body", http.StatusBadRequest)
-		return
+
+	var pageSize int
+	if pageSizeStr == "" {
+		pageSize = 10
+	} else {
+		pageSize, _ = strconv.Atoi(pageSizeStr)
+		if pageSize < 10 {
+			pageSize = 10
+		}
 	}
 
 	// 查询数据库
-	feedbacks, err := dbwrapper.QueryFeedback(reqBody.PageIndex, reqBody.PageSize)
+	feedbacks, err := dbwrapper.QueryFeedback(pageIndex, pageSize)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -164,9 +176,7 @@ func deleteFeedback(w http.ResponseWriter, r *http.Request) {
 	var ossFiles []string
 	for _, item := range queryResult {
 		feedbackIDs = append(feedbackIDs, item.FeedbackID)
-		for _, itemPath := range item.FileOssPath {
-			ossFiles = append(ossFiles, itemPath)
-		}
+		ossFiles = append(ossFiles, item.FileOssPath...)
 	}
 
 	// 在oss上删除文件
@@ -200,10 +210,6 @@ func main() {
 		logwrapper.Logger.Fatal(err)
 		return
 	}
-
-	// 提供上传页面的服务
-	uploadFS := http.FileServer(http.Dir("./html/upload"))
-	http.Handle("/upload/", http.StripPrefix("/upload", uploadFS))
 
 	// 提供浏览页面的服务
 	queryFS := http.FileServer(http.Dir("./html/query"))

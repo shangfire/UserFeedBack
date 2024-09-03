@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-25 20:51:47
- * @LastEditTime: 2024-08-30 15:57:28
+ * @LastEditTime: 2024-09-03 16:12:25
  * @FilePath: \UserFeedBack\dbwrapper\db.go
  * @Description: 数据库操作封装
  */
@@ -168,6 +168,11 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
 	err := instance.QueryRow("SELECT COUNT(*) FROM feedback").Scan(&totalCount)
 	if err != nil {
 		return realResult, err
+	}
+
+	// 越界时修正为最后的index
+	if pageIndex*pageSize > totalCount {
+		pageIndex = (totalCount+pageSize-1)/pageSize - 1
 	}
 
 	// 按分页大小和索引查询对应的反馈信息
