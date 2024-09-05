@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-12 11:38:02
- * @LastEditTime: 2024-09-03 16:07:27
+ * @LastEditTime: 2024-09-05 10:18:23
  * @FilePath: \UserFeedBack\main.go
  * @Description:main
  */
@@ -193,7 +193,6 @@ func main() {
 	// 初始化日志库
 	if err := logwrapper.Init("./log/log.log", logrus.DebugLevel); err != nil {
 		logwrapper.Logger.Fatal(err)
-		return
 	}
 
 	// 初始化配置
@@ -208,7 +207,6 @@ func main() {
 	// 初始化oss
 	if err := osswrapper.Init(); err != nil {
 		logwrapper.Logger.Fatal(err)
-		return
 	}
 
 	// 提供浏览页面的服务
