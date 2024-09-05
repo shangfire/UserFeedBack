@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-13 16:46:39
- * @LastEditTime: 2024-08-27 18:53:02
+ * @LastEditTime: 2024-09-05 17:40:27
  * @FilePath: \UserFeedBack\osswrapper\oss.go
  * @Description: oss操作封装
  */
@@ -96,6 +96,7 @@ func GenerateSecurityToken(originalPaths []string) (*GenrateResult, error) {
 	resourcePaths := make([]string, 0, len(originalPaths))
 
 	// 遍历原始文件名数组生成新的文件名
+	timestamp := time.Now().UnixMilli()
 	for _, originalPath := range originalPaths {
 		// 只使用文件名
 		originalFileName := filepath.Base(originalPath)
@@ -107,7 +108,7 @@ func GenerateSecurityToken(originalPaths []string) (*GenrateResult, error) {
 		// 生成oss上的存放路径
 		pathOnOss := fmt.Sprintf("%s/%d/%s.%s",
 			zgconfig.Cfg.Oss.DirFeedback,
-			time.Now().UnixMilli(),
+			timestamp,
 			fileName,
 			extension,
 		)

@@ -1,3 +1,10 @@
+/*
+ * @Author: shanghanjin
+ * @Date: 2024-08-29 09:55:44
+ * @LastEditTime: 2024-09-05 10:42:28
+ * @FilePath: \UserFeedBack\html\query\js\query.js
+ * @Description: 
+ */
 // 分页大小
 const PageSize = 20;
 
@@ -209,8 +216,8 @@ function renderFeedbackPagination(data) {
         };  
 
         if (i - 1 === data.currentPageIndex) {  
-            button.disabled = true; // 禁用当前页码按钮（可选）  
-            button.classList.add('active'); // 添加活动类（可选）  
+            button.disabled = true; // 禁用当前页码按钮 
+            button.classList.add('active'); // 添加活动类
         }  
 
         paginationDiv.appendChild(button);  

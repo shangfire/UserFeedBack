@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-25 20:51:47
- * @LastEditTime: 2024-09-03 16:12:25
+ * @LastEditTime: 2024-09-05 10:21:22
  * @FilePath: \UserFeedBack\dbwrapper\db.go
  * @Description: 数据库操作封装
  */
@@ -23,7 +23,7 @@ import (
 
 var (
 	// 数据库单例
-	instance *sql.DB
+	db *sql.DB
 	// 单例标志
 	once sync.Once
 )
@@ -42,13 +42,13 @@ func InitDB() {
 			configwrapper.Cfg.Database.Host,
 			configwrapper.Cfg.Database.Port,
 			configwrapper.Cfg.Database.Schema)
-		instance, err = sql.Open("mysql", address)
+		db, err = sql.Open("mysql", address)
 		if err != nil {
 			logwrapper.Logger.Fatalf("Failed to connect to database: %v", err)
 		}
 
 		// 检查连接是否成功
-		if err = instance.Ping(); err != nil {
+		if err = db.Ping(); err != nil {
 			logwrapper.Logger.Fatalf("Failed to ping database: %v", err)
 		}
 
@@ -68,7 +68,7 @@ func InitDB() {
 		);
 		`
 
-		if _, err := instance.Exec(createTabFeedback); err != nil {
+		if _, err := db.Exec(createTabFeedback); err != nil {
 			logwrapper.Logger.Fatalf("Failed to create table: %v", err)
 		}
 
@@ -84,7 +84,7 @@ func InitDB() {
 		);
 		`
 
-		if _, err := instance.Exec(createTabFile); err != nil {
+		if _, err := db.Exec(createTabFile); err != nil {
 			logwrapper.Logger.Fatalf("Failed to create table: %v", err)
 		}
 	})
@@ -95,7 +95,7 @@ func InitDB() {
  * @return {*}
  */
 func CloseDB() error {
-	return instance.Close()
+	return db.Close()
 }
 
 /**
@@ -105,7 +105,7 @@ func CloseDB() error {
  */
 func InsertFeedback(feedback dto.FeedbackUpload) error {
 	// 开启事务
-	tx, err := instance.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
 
 	// 查询feedback表的总条数
 	var totalCount int
-	err := instance.QueryRow("SELECT COUNT(*) FROM feedback").Scan(&totalCount)
+	err := db.QueryRow("SELECT COUNT(*) FROM feedback").Scan(&totalCount)
 	if err != nil {
 		return realResult, err
 	}
@@ -195,7 +195,7 @@ func QueryFeedback(pageIndex int, pageSize int) (dto.FeedbackQueryAll, error) {
             f.feedback_id;  
     `, limit)
 
-	rows, err := instance.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return realResult, err
 	}
@@ -322,7 +322,7 @@ func QueryRelatedFilesByFeedbackID(feedbackIDs []int) []FeedbackRelatedFile {
 			FileOssPath: []string{},
 		})
 
-		rows, err := instance.Query(query, feedbackID)
+		rows, err := db.Query(query, feedbackID)
 		if err != nil {
 			logwrapper.Logger.Error(err)
 			return feedbackRelatedFiles
@@ -369,5 +369,5 @@ func DeleteFeedbackByID(feedbackIDs []int) {
 	builder.WriteString(")")
 
 	// 执行删除语句
-	instance.Exec(builder.String())
+	db.Exec(builder.String())
 }
