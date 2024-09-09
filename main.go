@@ -1,7 +1,7 @@
 /*
  * @Author: shanghanjin
  * @Date: 2024-08-12 11:38:02
- * @LastEditTime: 2024-09-05 10:18:23
+ * @LastEditTime: 2024-09-09 13:58:23
  * @FilePath: \UserFeedBack\main.go
  * @Description:main
  */
@@ -216,6 +216,10 @@ func main() {
 	// 提供vue测试项目页面的服务
 	vueFS := http.FileServer(http.Dir("./dist"))
 	http.Handle("/", vueFS)
+
+	// 提供最简单的helloworld测试页面的服务
+	helloFS := http.FileServer(http.Dir("./html/hello"))
+	http.Handle("/hello/", http.StripPrefix("/hello", helloFS))
 
 	// 设置各接口响应函数
 	http.HandleFunc("/api/queryFeedback", queryFeedback)
